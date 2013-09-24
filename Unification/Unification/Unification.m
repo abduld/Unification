@@ -18,46 +18,54 @@ occurs[x_, Variable[y_]] :=
 occurs[x_, Term[h_, r_]] :=
 	MemberQ[occurs[x, #]& /@ r, True]
 
-unifyOne[x_Integer, y_Variable] :=
-	y -> x
-unifyOne[x_Variable, y_Integer] :=
-	x -> y
-unifyOne[x_Variable, y_Variable] :=
+unifyOne[Variable[x_], Variable[y_]] :=
 	If[x === y,
 		{},
-		x -> y
+		{{x, Variable[y]}}
 	]
 unifyOne[Term[ha_, ra_], Term[hb_, rb_]] :=
-	{}
-unifyOne[x_Integer, y_Integer] :=
-	If[x == y,
-		{},
+	If[ha === hb && Length[ra] === Length[rb],
+		First@MapThread[unify[{{##}}]&, {ra, rb}],
 		Throw[
-			Print["ERROR: Failed to unify ", x, " ", y];
+			Print["Failed: unable to unify in unifyOne"];
 			$Failed
 		]
 	]
-	
-substitute[s_, x_, Variable[y_]] :=
+unifyOne[t_Term, x_Variable] :=
+	unifyOne[x, t]
+unifyOne[Variable[x_], t_Term] :=
+	If[occurs[x, t],
+		Throw[
+			Print["Failed: cyclic unification"];
+			$Failed
+		],
+		{{x, t}}
+	]
+
+substitute[s_, {x_, Variable[y_]}] :=
 	If[x === y,
 		s,
 		Variable[y]
 	]
-substitute[s_, x_, Term[f_, u_]] :=
-	Term[f, substitute[s, x, #]& /@ u]
+substitute[s_, {x_, Term[f_, u_]}] :=
+	Term[f, substitute[s, {x, #}]& /@ u]
 	
-applySubstitution[s_, t_, g_] :=
+applySubstitution[s_, t_] :=
 	Fold[
-		Function[{x, u}, substitute[u, x, g]],
-		s,
-		t
+		substitute,
+		t,
+		s
 	]
+
+Unify[args___] := Catch[
+	unify[args]
+]
 
 unify[{}] := {}
 unify[{{x_, y_}, rest___}] := Module[{t2, t1},
 	t2 = unify[{rest}];
 	t1 = unifyOne[applySubstitution[t2, x], applySubstitution[t2, y]];
-	
+	Join[t1, t2]
 ]
 
 End[]
